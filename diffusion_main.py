@@ -3,17 +3,17 @@ Train a diffusion model on images.
 """
 import argparse
 import yaml
-from improved_diffusion import dist_util, logger
-from improved_diffusion.image_datasets import load_data
-from improved_diffusion.resample import create_named_schedule_sampler
-from improved_diffusion.script_util import (
+from models import dist_util, logger
+from models.image_datasets import load_data
+from models.resample import create_named_schedule_sampler
+from models.script_util import (
     model_and_diffusion_defaults,
     create_model_and_diffusion,
     args_to_dict,
     select_config,
     add_dict_to_argparser,
 )
-from improved_diffusion.train_util import TrainLoop
+from models.train_util import TrainLoop
 import torchvision
 import torch
 from torchvision import transforms
