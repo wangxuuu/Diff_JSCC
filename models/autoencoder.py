@@ -79,3 +79,6 @@ class Autoencoder(nn.Module):
     def decode(self, z):
         decoded = self.decoder(z)
         return self.final_layer(decoded)
+
+    def forward(self, x):
+        return self.decode(self.encode(x))

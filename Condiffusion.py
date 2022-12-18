@@ -97,7 +97,7 @@ def main():
     # The amount of noise to add each timestep when sampling
     # 0 = no noise (DDIM)
     # 1 = full noise (DDPM)
-    eta = 1.
+    eta = 0.
 
 
     for epoch in range(args.epochs):

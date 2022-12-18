@@ -7,3 +7,7 @@ results/
 .idea
 
 .DS_Store
+
+checkpoints/
+
+backup/
