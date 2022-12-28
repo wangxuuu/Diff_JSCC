@@ -1,6 +1,8 @@
 """
 Train a diffusion model on images.
+TODO: save the checkpoint of encoder separately from the model
 """
+
 import argparse
 import yaml
 from models import dist_util, logger
@@ -9,14 +11,11 @@ from models.resample import create_named_schedule_sampler
 from models.script_util import (
     model_and_diffusion_defaults,
     create_model_and_diffusion,
-    args_to_dict,
     select_config,
-    add_dict_to_argparser,
+    create_encoder,
+    encoder_defaults,
 )
 from models.train_util import TrainLoop
-import torchvision
-import torch
-from torchvision import transforms
 
 def main():
     parser = argparse.ArgumentParser(description='Training script for Diffusion Models')
@@ -39,6 +38,10 @@ def main():
     model, diffusion = create_model_and_diffusion(
         **select_config(config, model_and_diffusion_defaults().keys())
     )
+    # create encoder if apply diffusion conditional on latent
+    if config['use_latent']:
+        encoder = create_encoder(**select_config(config, encoder_defaults().keys()))
+        encoder.to(dist_util.dev())
     model.to(dist_util.dev())
     logger.log("creating sampling model...")
     schedule_sampler = create_named_schedule_sampler(config['schedule_sampler'], diffusion)
@@ -69,6 +72,8 @@ def main():
         schedule_sampler=schedule_sampler,
         weight_decay=config['weight_decay'],
         lr_anneal_steps=config['lr_anneal_steps'],
+        encoder=encoder,
+        con_encoder=config['use_label_embed'],
     ).run_loop()
 
 

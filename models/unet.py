@@ -144,13 +144,16 @@ class ResBlock(TimestepBlock):
             SiLU(),
             conv_nd(dims, channels, self.out_channels, 3, padding=1),
         )
-        self.emb_layers = nn.Sequential(
-            SiLU(),
-            linear(
-                emb_channels,
-                2 * self.out_channels if use_scale_shift_norm else self.out_channels,
-            ),
-        )
+        if emb_channels is not None:
+            self.emb_layers = nn.Sequential(
+                SiLU(),
+                linear(
+                    emb_channels,
+                    2 * self.out_channels if use_scale_shift_norm else self.out_channels,
+                ),
+            )
+        else:
+            self.emb_layers = nn.Identity()
         self.out_layers = nn.Sequential(
             normalization(self.out_channels),
             SiLU(),
@@ -169,7 +172,7 @@ class ResBlock(TimestepBlock):
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
-    def forward(self, x, emb):
+    def forward(self, x, emb=None):
         """
         Apply the block to a Tensor, conditioned on a timestep embedding.
 
@@ -181,18 +184,22 @@ class ResBlock(TimestepBlock):
             self._forward, (x, emb), self.parameters(), self.use_checkpoint
         )
 
-    def _forward(self, x, emb):
+    def _forward(self, x, emb=None):
         h = self.in_layers(x)
-        emb_out = self.emb_layers(emb).type(h.dtype)
-        while len(emb_out.shape) < len(h.shape):
-            emb_out = emb_out[..., None]
-        if self.use_scale_shift_norm:
-            out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
-            scale, shift = th.chunk(emb_out, 2, dim=1)
-            h = out_norm(h) * (1 + scale) + shift
-            h = out_rest(h)
+        if emb is not None:
+            # if emb is not None, then we need to condition on it
+            emb_out = self.emb_layers(emb).type(h.dtype)
+            while len(emb_out.shape) < len(h.shape):
+                emb_out = emb_out[..., None]
+            if self.use_scale_shift_norm:
+                out_norm, out_rest = self.out_layers[0], self.out_layers[1:]
+                scale, shift = th.chunk(emb_out, 2, dim=1)
+                h = out_norm(h) * (1 + scale) + shift
+                h = out_rest(h)
+            else:
+                h = h + emb_out
+                h = self.out_layers(h)
         else:
-            h = h + emb_out
             h = self.out_layers(h)
         return self.skip_connection(x) + h
 
@@ -310,6 +317,8 @@ class UNetModel(nn.Module):
         conv_resample=True,
         dims=2,
         num_classes=None,
+        use_latent=None,
+        latent_dim=None,
         use_checkpoint=False,
         num_heads=1,
         num_heads_upsample=-1,
@@ -332,6 +341,8 @@ class UNetModel(nn.Module):
         self.use_checkpoint = use_checkpoint
         self.num_heads = num_heads
         self.num_heads_upsample = num_heads_upsample
+        self.use_latent = use_latent
+        self.latent_dim = latent_dim
 
         time_embed_dim = model_channels * 4
         self.time_embed = nn.Sequential(
@@ -342,6 +353,10 @@ class UNetModel(nn.Module):
 
         if self.num_classes is not None:
             self.label_emb = nn.Embedding(num_classes, time_embed_dim)
+
+        if self.use_latent is not None:
+            self.latent_emb = nn.Linear(self.latent_dim, time_embed_dim)
+
 
         self.input_blocks = nn.ModuleList(
             [
@@ -459,7 +474,7 @@ class UNetModel(nn.Module):
         """
         return next(self.input_blocks.parameters()).dtype
 
-    def forward(self, x, timesteps, y=None):
+    def forward(self, x, timesteps, y=None, latent=None):
         """
         Apply the model to an input batch.
 
@@ -481,6 +496,10 @@ class UNetModel(nn.Module):
             assert y.shape == (x.shape[0],)
             # y: [64]; label_emb: [64, 512]
             emb = emb + self.label_emb(y)
+        
+        if self.use_latent:
+            assert latent is not None, "must specify the latent data if and only if the model is class-conditional"
+            emb = emb + self.latent_emb(latent)
 
         h = x.type(self.inner_dtype)
         for module in self.input_blocks:
@@ -526,6 +545,187 @@ class UNetModel(nn.Module):
         return result
 
 
+################# half of the Unet #####################
+class EncoderModel(nn.Module):
+    """
+    The half UNet model with attention and timestep embedding.
+    """
+
+    def __init__(
+        self,
+        in_channels,
+        model_channels,
+        out_channels,
+        num_res_blocks,
+        attention_resolutions,
+        dropout=0,
+        channel_mult=(1, 2, 4, 8),
+        conv_resample=True,
+        dims=2,
+        num_classes=None,
+        use_checkpoint=False,
+        num_heads=1,
+        num_heads_upsample=-1,
+        use_scale_shift_norm=False,
+        use_time_embed=False,
+        use_label_embed=False
+    ):
+        super().__init__()
+
+        if num_heads_upsample == -1:
+            num_heads_upsample = num_heads
+
+        self.in_channels = in_channels
+        self.model_channels = model_channels
+        self.out_channels = out_channels
+        self.num_res_blocks = num_res_blocks
+        self.attention_resolutions = attention_resolutions
+        self.dropout = dropout
+        self.channel_mult = channel_mult
+        self.conv_resample = conv_resample
+        self.num_classes = num_classes
+        self.use_checkpoint = use_checkpoint
+        self.num_heads = num_heads
+        self.num_heads_upsample = num_heads_upsample
+        self.use_time_embed = use_time_embed
+        self.use_label_embed = use_label_embed
+
+        if use_time_embed:
+            time_embed_dim = model_channels * 4
+            self.time_embed = nn.Sequential(
+                linear(model_channels, time_embed_dim),
+                SiLU(),
+                linear(time_embed_dim, time_embed_dim),
+            )
+        else:
+            time_embed_dim = None
+
+        assert (use_label_embed) == (
+            self.num_classes is not None
+        ), "must specify num_classes if and only if the model is class-conditional"
+
+        if self.use_label_embed:
+            label_embed_dim = model_channels * 4
+            self.label_emb = nn.Embedding(num_classes, label_embed_dim)
+        else:
+            label_embed_dim = None
+
+        embed_dim = time_embed_dim or label_embed_dim
+        self.input_blocks = nn.ModuleList(
+            [
+                TimestepEmbedSequential(
+                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
+                )
+            ]
+        )
+        input_block_chans = [model_channels]
+        ch = model_channels
+        ds = 1
+        for level, mult in enumerate(channel_mult):
+            for _ in range(num_res_blocks):
+                layers = [
+                    ResBlock(
+                        ch,
+                        embed_dim,
+                        dropout,
+                        out_channels=mult * model_channels,
+                        dims=dims,
+                        use_checkpoint=use_checkpoint,
+                        use_scale_shift_norm=use_scale_shift_norm,
+                    )
+                ]
+                ch = mult * model_channels
+                if ds in attention_resolutions:
+                    layers.append(
+                        AttentionBlock(
+                            ch, use_checkpoint=use_checkpoint, num_heads=num_heads
+                        )
+                    )
+                self.input_blocks.append(TimestepEmbedSequential(*layers))
+                input_block_chans.append(ch)
+            if level != len(channel_mult) - 1:
+                self.input_blocks.append(
+                    TimestepEmbedSequential(Downsample(ch, conv_resample, dims=dims))
+                )
+                input_block_chans.append(ch)
+                ds *= 2
+
+        self.middle_block = TimestepEmbedSequential(
+            ResBlock(
+                ch,
+                embed_dim,
+                dropout,
+                dims=dims,
+                use_checkpoint=use_checkpoint,
+                use_scale_shift_norm=use_scale_shift_norm,
+            ),
+            AttentionBlock(ch, use_checkpoint=use_checkpoint, num_heads=num_heads),
+            ResBlock(
+                ch,
+                embed_dim,
+                dropout,
+                dims=dims,
+                use_checkpoint=use_checkpoint,
+                use_scale_shift_norm=use_scale_shift_norm,
+            ),
+        )
+        
+        self.out = nn.Sequential(
+            normalization(ch),
+            nn.SiLU(),
+            nn.AdaptiveAvgPool2d((1,1)),
+            conv_nd(dims, ch, out_channels, 1),
+            nn.Flatten(),
+        )
+
+    @property
+    def inner_dtype(self):
+        """
+        Get the dtype used by the torso of the model.
+        """
+        return next(self.input_blocks.parameters()).dtype
+
+    def forward(self, x, timesteps=None, y=None, return_2d_features=False):
+        """
+        Apply the model to an input batch.
+
+        :param x: an [N x C x ...] Tensor of inputs.
+        :param timesteps: a 1-D batch of timesteps.
+        :param y: an [N] Tensor of labels, if class-conditional.
+        :return: an [N x C x ...] Tensor of outputs.
+        """
+
+        hs = []
+        # timestep_embedding: [64, 128] ->
+        # emb: [64, 512] 
+        if self.use_time_embed:
+            emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
+        else:
+            emb = None
+        # label embedding
+        if self.use_label_embed:
+            assert y.shape == (x.shape[0],), "labels are not provided or are not the right shape"
+            # y: [64]; label_emb: [64, 512]
+            if emb is None:
+                emb = self.label_emb(y)
+            else:
+                emb = emb + self.label_emb(y)
+
+        h = x.type(self.inner_dtype)
+        for module in self.input_blocks:
+            h = module(h, emb)
+            hs.append(h)
+        h = self.middle_block(h, emb)
+        h = h.type(x.dtype)
+        h_2d = h
+        h = self.out(h)
+
+        if return_2d_features:
+            return h, h_2d
+        else:
+            return h
+
+
 class SuperResModel(UNetModel):
     """
     A UNetModel that performs super-resolution.
@@ -547,4 +747,6 @@ class SuperResModel(UNetModel):
         upsampled = F.interpolate(low_res, (new_height, new_width), mode="bilinear")
         x = th.cat([x, upsampled], dim=1)
         return super().get_feature_vectors(x, timesteps, **kwargs)
+
+
 

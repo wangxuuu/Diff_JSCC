@@ -45,9 +45,15 @@ class TrainLoop:
         schedule_sampler=None,
         weight_decay=0.0,
         lr_anneal_steps=0,
+        encoder=None,
+        con_encoder=False
     ):
         self.model = model
         self.diffusion = diffusion
+        if encoder is not None:
+            self.encoder = encoder
+        else:
+            self.encoder = None
         self.data = data
         self.batch_size = batch_size
         self.microbatch = microbatch if microbatch > 0 else batch_size
@@ -70,7 +76,11 @@ class TrainLoop:
         self.resume_step = 0
         self.global_batch = self.batch_size * dist.get_world_size()
 
+        self.con_encoder = con_encoder
         self.model_params = list(self.model.parameters())
+        if self.encoder is not None:
+            self.model_params += list(self.encoder.parameters())
+        
         self.master_params = self.model_params
         self.lg_loss_scale = INITIAL_LOG_LOSS_SCALE
         self.sync_cuda = th.cuda.is_available()
@@ -102,6 +112,14 @@ class TrainLoop:
                 bucket_cap_mb=128,
                 find_unused_parameters=False,
             )
+            self.ddp_encoder = DDP(
+                self.encoder,
+                device_ids=[dist_util.dev()],
+                output_device=dist_util.dev(),
+                broadcast_buffers=False,
+                bucket_cap_mb=128,
+                find_unused_parameters=False,
+            ) if self.encoder is not None else None
         else:
             if dist.get_world_size() > 1:
                 logger.warn(
@@ -110,6 +128,7 @@ class TrainLoop:
                 )
             self.use_ddp = False
             self.ddp_model = self.model
+            self.ddp_encoder = self.encoder if self.encoder is not None else None
 
     def _load_and_sync_parameters(self):
         resume_checkpoint = find_resume_checkpoint() or self.resume_checkpoint
@@ -193,6 +212,13 @@ class TrainLoop:
                 k: v[i : i + self.microbatch].to(dist_util.dev())
                 for k, v in cond.items()
             }
+            # if conditioning on latent code, encode it
+            if self.encoder is not None:
+                if self.con_encoder:
+                    micro_cond['latent'] = self.encoder(micro, **micro_cond)
+                else:
+                    micro_cond['latent'] = self.encoder(micro)
+
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
 
@@ -269,18 +295,22 @@ class TrainLoop:
             logger.logkv("lg_loss_scale", self.lg_loss_scale)
 
     def save(self):
-        def save_checkpoint(rate, params):
-            state_dict = self._master_params_to_state_dict(params)
+        def save_checkpoint(rate, params, model_name="model"):
+            state_dict = self._master_params_to_state_dict(params, model_name)
             if dist.get_rank() == 0:
                 logger.log(f"saving model {rate}...")
                 if not rate:
-                    filename = f"model{(self.step+self.resume_step):06d}.pt"
+                    filename = f"{model_name}{(self.step+self.resume_step):06d}.pt"
                 else:
                     filename = f"ema_{rate}_{(self.step+self.resume_step):06d}.pt"
                 with bf.BlobFile(bf.join(get_blob_logdir(), filename), "wb") as f:
                     th.save(state_dict, f)
-
+        # save the diffusion model (Unet)
         save_checkpoint(0, self.master_params)
+        # save the encoder
+        if self.encoder is not None:
+            save_checkpoint(0, self.master_params, model_name='encoder')
+        # save the ema models
         for rate, params in zip(self.ema_rate, self.ema_params):
             save_checkpoint(rate, params)
 
@@ -293,19 +323,34 @@ class TrainLoop:
 
         dist.barrier()
 
-    def _master_params_to_state_dict(self, master_params):
+    def _master_params_to_state_dict(self, master_params, model_name='model'):
+        if model_name == 'model':
+            model = self.model
+        elif model_name == 'encoder':
+            model = self.encoder
+        else:
+            raise ValueError(f'Unknown model name: {model_name}')
         if self.use_fp16:
             master_params = unflatten_master_params(
-                self.model.parameters(), master_params
+                model.parameters(), master_params
             )
-        state_dict = self.model.state_dict()
-        for i, (name, _value) in enumerate(self.model.named_parameters()):
+        state_dict = model.state_dict()
+        for i, (name, _value) in enumerate(model.named_parameters()):
             assert name in state_dict
-            state_dict[name] = master_params[i]
+            if model_name == 'encoder':
+                state_dict[name] = master_params[len(self.model.state_dict())+i]
+            else:
+                state_dict[name] = master_params[i]
         return state_dict
 
-    def _state_dict_to_master_params(self, state_dict):
-        params = [state_dict[name] for name, _ in self.model.named_parameters()]
+    def _state_dict_to_master_params(self, state_dict, model_name='model'):
+        if model_name == 'model':
+            model = self.model
+        elif model_name == 'encoder':
+            model = self.encoder
+        else:
+            raise ValueError(f'Unknown model name: {model_name}')
+        params = [state_dict[name] for name, _ in model.named_parameters()]
         if self.use_fp16:
             return make_master_params(params)
         else:

@@ -3,7 +3,7 @@ import inspect
 
 from . import gaussian_diffusion as gd
 from .respace import SpacedDiffusion, space_timesteps
-from .unet import SuperResModel, UNetModel
+from .unet import SuperResModel, UNetModel, EncoderModel
 
 NUM_CLASSES = 10 # 1000
 
@@ -32,8 +32,30 @@ def model_and_diffusion_defaults():
         rescale_learned_sigmas=True,
         use_checkpoint=False,
         use_scale_shift_norm=True,
+        num_classes=10,
+        latent_dim=None,
+        use_latent=None
     )
 
+def encoder_defaults():
+    """
+    Defaults for encoding the data
+    """
+    return dict(
+        image_size=64,
+        num_channels=128,
+        out_channels=512,
+        num_res_blocks=2,
+        num_classes=10,
+        num_heads=4,
+        num_heads_upsample=-1,
+        attention_resolutions="16,8",
+        dropout=0.0,
+        use_checkpoint=False,
+        use_scale_shift_norm=True,
+        use_time_embed=False,
+        use_label_embed=False
+    )
 
 def create_model_and_diffusion(
     image_size,
@@ -55,6 +77,9 @@ def create_model_and_diffusion(
     rescale_learned_sigmas,
     use_checkpoint,
     use_scale_shift_norm,
+    use_latent,
+    latent_dim,
+    num_classes
 ):
     model = create_model(
         image_size,
@@ -68,6 +93,9 @@ def create_model_and_diffusion(
         num_heads_upsample=num_heads_upsample,
         use_scale_shift_norm=use_scale_shift_norm,
         dropout=dropout,
+        num_classes=num_classes,
+        use_latent=use_latent,
+        latent_dim=latent_dim,
     )
     diffusion = create_gaussian_diffusion(
         steps=diffusion_steps,
@@ -82,6 +110,48 @@ def create_model_and_diffusion(
     )
     return model, diffusion
 
+def create_encoder(
+        image_size,
+        num_channels,
+        out_channels,
+        num_res_blocks,
+        use_checkpoint,
+        attention_resolutions,
+        num_heads,
+        num_heads_upsample,
+        use_scale_shift_norm,
+        dropout,
+        num_classes=None,
+        use_time_embed=False,
+        use_label_embed=False):
+    if image_size == 256:
+        channel_mult = (1, 1, 2, 2, 4, 4)
+    elif image_size == 64:
+        channel_mult = (1, 2, 3, 4)
+    elif image_size == 32:
+        channel_mult = (1, 2, 2, 2)
+    else:
+        raise ValueError(f"unsupported image size: {image_size}")
+
+    attention_ds = []
+    for res in attention_resolutions.split(","):
+        attention_ds.append(image_size // int(res))
+    return EncoderModel(
+        in_channels=3,
+        model_channels=num_channels,
+        out_channels=out_channels,
+        num_res_blocks=num_res_blocks,
+        attention_resolutions=tuple(attention_ds),
+        dropout=dropout,
+        channel_mult=channel_mult,
+        num_classes=(num_classes if use_label_embed else None),
+        use_checkpoint=use_checkpoint,
+        num_heads=num_heads,
+        num_heads_upsample=num_heads_upsample,
+        use_scale_shift_norm=use_scale_shift_norm,
+        use_time_embed=use_time_embed,
+        use_label_embed=use_label_embed
+    )
 
 def create_model(
     image_size,
@@ -95,6 +165,9 @@ def create_model(
     num_heads_upsample,
     use_scale_shift_norm,
     dropout,
+    use_latent,
+    latent_dim,
+    num_classes=None,
 ):
     if image_size == 256:
         channel_mult = (1, 1, 2, 2, 4, 4)
@@ -117,11 +190,13 @@ def create_model(
         attention_resolutions=tuple(attention_ds),
         dropout=dropout,
         channel_mult=channel_mult,
-        num_classes=(NUM_CLASSES if class_cond else None),
+        num_classes=(num_classes if class_cond else None),
         use_checkpoint=use_checkpoint,
         num_heads=num_heads,
         num_heads_upsample=num_heads_upsample,
         use_scale_shift_norm=use_scale_shift_norm,
+        use_latent=use_latent,
+        latent_dim=latent_dim,
     )
 
 
