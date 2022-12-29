@@ -559,6 +559,52 @@ class GaussianDiffusion:
 
         return {"sample": mean_pred, "pred_xstart": out["pred_xstart"]}
 
+    def ddim_reverse_sample_loop(
+        self,
+        model,
+        x,
+        clip_denoised=True,
+        denoised_fn=None,
+        model_kwargs=None,
+        eta=0.0,
+        device=None,
+    ):
+        if device is None:
+            device = next(model.parameters()).device
+        sample_t = []
+        xstart_t = []
+        T = []
+        indices = list(range(self.num_timesteps))
+        sample = x
+        for i in indices:
+            t = th.tensor([i] * len(sample), device=device)
+            with th.no_grad():
+                out = self.ddim_reverse_sample(model,
+                                               sample,
+                                               t=t,
+                                               clip_denoised=clip_denoised,
+                                               denoised_fn=denoised_fn,
+                                               model_kwargs=model_kwargs,
+                                               eta=eta)
+                sample = out['sample']
+                # [1, ..., T]
+                sample_t.append(sample)
+                # [0, ...., T-1]
+                xstart_t.append(out['pred_xstart'])
+                # [0, ..., T-1] ready to use
+                T.append(t)
+
+        return {
+            #  xT "
+            'sample': sample,
+            # (1, ..., T)
+            'sample_t': sample_t,
+            # xstart here is a bit different from sampling from T = T-1 to T = 0
+            # may not be exact
+            'xstart_t': xstart_t,
+            'T': T,
+        }
+
     def ddim_sample_loop(
         self,
         model,

@@ -110,6 +110,44 @@ def create_model_and_diffusion(
     )
     return model, diffusion
 
+def create_diffusion(config, T=None):
+    """
+    Create diffusion model from config.
+    or if T is not None, create diffusion model with T steps
+    """
+    if T is None:
+        return create_gaussian_diffusion(
+        steps=config['diffusion_steps'],
+        learn_sigma=config['learn_sigma'],
+        sigma_small=config['sigma_small'],
+        noise_schedule=config['noise_schedule'],
+        use_kl=config['use_kl'],
+        predict_xstart=config['predict_xstart'],
+        rescale_timesteps=config['rescale_timesteps'],
+        rescale_learned_sigmas=config['rescale_learned_sigmas'],
+        timestep_respacing=config['timestep_respacing'],
+    )
+    else:
+        return create_gaussian_diffusion(
+        steps=T,
+        learn_sigma=config['learn_sigma'],
+        sigma_small=config['sigma_small'],
+        noise_schedule=config['noise_schedule'],
+        use_kl=config['use_kl'],
+        predict_xstart=config['predict_xstart'],
+        rescale_timesteps=config['rescale_timesteps'],
+        rescale_learned_sigmas=config['rescale_learned_sigmas'],
+        timestep_respacing=config['timestep_respacing'],
+    )
+
+def create_sampler(config, T=None):
+    diffusion_model = create_diffusion(config, T)
+    return diffusion_model.p_sample_loop if not config['use_ddim'] else diffusion_model.ddim_sample_loop
+
+def create_reverse_process(config, T=None):
+    diffusion_model = create_diffusion(config, T)
+    return diffusion_model.ddim_reverse_sample_loop
+
 def create_encoder(
         image_size,
         num_channels,

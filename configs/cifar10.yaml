@@ -1,49 +1,42 @@
 ## for cifar10
-# improved_diffusion
-image_size: 32
-num_channels: 128
-num_res_blocks: 3
 
-
-learn_sigma: True
-dropout: 0.3
-diffusion_steps: 4000
-noise_schedule: 'cosine'
-lr: 0.0001
-# batch_size: 128
+#============= save path =============#
+num_classes: 10
 dataset: "cifar10"
 data_dir: "../data/cifar10"
 log_dir: "./log"
-schedule_sampler: "uniform"
+model_path: './log/model010000.pt'
+encoder_path: './log/encoder010000.pt'
+
+#============= training parameters =============#
+dropout: 0.3
+lr: 0.0001
 weight_decay: 0.0
-lr_anneal_steps: 10000
+lr_anneal_steps: 100000 # total training steps
 batch_size: 64
 microbatch: -1  # -1 disables microbatches
 ema_rate: 0.9999  # comma-separated list of EMA values
 log_interval: 10
-save_interval: 1000 #10000
+save_interval: 10000 #10000
 resume_checkpoint: ""
 use_fp16: False
 fp16_scale_growth: 1e-3
 
-# default setting: model and diffusion
+#============= model (Unet) setting =============#
+image_size: 32
+num_channels: 128
+num_res_blocks: 3
 num_heads: 4
 num_heads_upsample: -1
 attention_resolutions: "16,8"
 
-
+#============= diffusion setting =============#
+learn_sigma: True
+diffusion_steps: 4000
+noise_schedule: 'cosine'
+schedule_sampler: "uniform"
 sigma_small: False
-
 class_cond: True
-num_classes: 10
-# Encoder
-use_label_embed: False
-
-
-latent_dim: 512 # has to be same as out_channels if use latent diffusion
-use_latent: True # decide whether to conditioning on latent code of the data
-out_channels: 512 # the dim of latent representation
-
 timestep_respacing: ""
 use_kl: False
 predict_xstart: False
@@ -51,14 +44,16 @@ rescale_timesteps: True
 rescale_learned_sigmas: True
 use_checkpoint: False
 use_scale_shift_norm: True
-use_time_embed: False
 
-# checkpoint path
-model_path: './log/model010000.pt'
-encoder_path: './log/encoder010000.pt'
-
-# sampling setting
+#============= sampling setting =============#
 num_samples: 100 # number of generated samples
 clip_denoised: True
-use_ddim: False
+use_ddim: True
 
+#============= Encoder =============#
+use_label_embed: False # whether to condition on label when training the encoder
+use_time_embed: False # set as False in default
+
+use_latent: True # decide whether to conditioning on latent code of the data; used to create Unet
+latent_dim: 512 # has to be same as out_channels if use latent diffusion; used to create Unet
+out_channels: 512 # the dim of latent representation; used to create encoder
