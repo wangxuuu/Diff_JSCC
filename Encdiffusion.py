@@ -36,7 +36,7 @@ def main():
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=2000, help="Number of epochs to train for.")
     parser.add_argument("--sample_dir", type=str, default='./results/con_diffusion/')
-    parser.add_argument("--dataset_dir", type=str, default='../../Data/cifar10/')
+    parser.add_argument("--dataset_dir", type=str, default='../data/cifar10/')
     parser.add_argument("--ae_ckpt_dir", type=str, default='./checkpoints/autoencoder.pt')
     parser.add_argument("--latent_inf", action="store_true", default=True, help="whether to use latent information")
     parser.add_argument("--ckpt_dir", type=str, default='./checkpoints/')
@@ -131,7 +131,7 @@ def main():
                 noise = torch.randn([reals.shape[0], 3, 32, 32], device=device)
                 fakes = sample(model_ema, noise, steps, eta, classes, latent_z)
                 x_concat = torch.cat([reals, fakes], dim=3).add(1).div(2)
-                save_image(x_concat, os.path.join(args.sample_dir, 'diffuse-{}.png'.format(epoch+1)), nrow=int(reals.shape[0]**0.5))
+                save_image(x_concat, os.path.join(args.sample_dir, 'diffuse-{}.png'.format(epoch)), nrow=int(reals.shape[0]**0.5))
 
     obj = {
         'model': model.state_dict(),

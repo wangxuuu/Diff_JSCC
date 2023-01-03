@@ -82,3 +82,59 @@ class Autoencoder(nn.Module):
 
     def forward(self, x):
         return self.decode(self.encode(x))
+
+
+def expand_to_planes(input, shape):
+    """
+    Expand the input to the shape of the output
+    """
+    return input[..., None, None].repeat([1, 1, shape[2], shape[3]])
+
+#################### JSCC_encoder ####################
+class JSCC_encoder(nn.Module):
+    """
+    Use JSCC as the encoder to generate the latent representation
+    """
+    def __init__(self,
+                 in_channels: int = 3,
+                 hidden_dims: list = None,
+                 num_classes: int = 10,
+                 use_time_embed: bool = False,
+                 use_label_embed: bool = False,):
+        super(JSCC_encoder, self).__init__()
+        if hidden_dims is None:
+            hidden_dims = [12, 24, 48, 96, 96]
+
+        modules = []
+        input_channels = in_channels
+        for h_dim in hidden_dims:
+            modules.append(
+                nn.Sequential(
+                    nn.Conv2d(input_channels,
+                              out_channels=h_dim,
+                              kernel_size=4,
+                              stride=2,
+                              padding=1),
+                    nn.BatchNorm2d(h_dim),
+                    nn.ReLU())
+            )
+            input_channels = h_dim
+
+        self.out = nn.Flatten()
+        self.encoder = nn.Sequential(*modules)
+
+        # if use_time_embed:
+        #     time_embed_dim = model_channels * 4
+        #     self.time_embed = nn.Linear(model_channels, time_embed_dim)
+
+        # if use_label_embed:
+        #     label_embed_dim = model_channels * 4
+        #     self.label_emb = nn.Embedding(num_classes, label_embed_dim)
+        
+
+    def forward(self, x, timesteps=None, y=None):
+        # if timesteps is not None:
+        #     timestep_embed = expand_to_planes(self.timestep_embed(timesteps), input.shape)
+        # if y is not None:
+        #     class_embed = expand_to_planes(self.class_embed(y), input.shape)
+        return self.out(self.encoder(x))

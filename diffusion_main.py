@@ -7,6 +7,7 @@ import argparse
 import yaml
 from models import dist_util, logger
 from models.image_datasets import load_data
+from models.autoencoder import JSCC_encoder
 from models.resample import create_named_schedule_sampler
 from models.script_util import (
     model_and_diffusion_defaults,
@@ -40,7 +41,10 @@ def main():
     )
     # create encoder if apply diffusion conditional on latent
     if config['use_latent']:
-        encoder = create_encoder(**select_config(config, encoder_defaults().keys()))
+        if config['encoder_type']=='unet':
+            encoder = create_encoder(**select_config(config, encoder_defaults().keys()))
+        elif config['encoder_type']=='jscc':
+            encoder = JSCC_encoder(hidden_dims=config['hidden_dims'])
         encoder.to(dist_util.dev())
     model.to(dist_util.dev())
     logger.log("creating sampling model...")

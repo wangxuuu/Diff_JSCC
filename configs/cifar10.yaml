@@ -3,10 +3,11 @@
 #============= save path =============#
 num_classes: 10
 dataset: "cifar10"
-data_dir: "../data/cifar10"
-log_dir: "./log"
-model_path: './log/model010000.pt'
+data_dir: "../data/cifar_train"
+log_dir: "./jscc_log"
+model_path: './jscc_log/model100000.pt'
 encoder_path: './log/encoder010000.pt'
+jscc_encoder_path: './jscc_log/encoder100000.pt'
 
 #============= training parameters =============#
 dropout: 0.3
@@ -17,7 +18,7 @@ batch_size: 64
 microbatch: -1  # -1 disables microbatches
 ema_rate: 0.9999  # comma-separated list of EMA values
 log_interval: 10
-save_interval: 10000 #10000
+save_interval: 50000 #10000
 resume_checkpoint: ""
 use_fp16: False
 fp16_scale_growth: 1e-3
@@ -51,9 +52,11 @@ clip_denoised: True
 use_ddim: True
 
 #============= Encoder =============#
+encoder_type: 'jscc' # can set as 'jscc' 'unet'
 use_label_embed: False # whether to condition on label when training the encoder
 use_time_embed: False # set as False in default
 
 use_latent: True # decide whether to conditioning on latent code of the data; used to create Unet
 latent_dim: 512 # has to be same as out_channels if use latent diffusion; used to create Unet
 out_channels: 512 # the dim of latent representation; used to create encoder
+hidden_dims: [12, 24, 48, 96, 512] # only need when using JSCC encoder; the last dimension should keep as same as the latent dim above
