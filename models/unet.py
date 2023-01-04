@@ -354,7 +354,7 @@ class UNetModel(nn.Module):
         if self.num_classes is not None:
             self.label_emb = nn.Embedding(num_classes, time_embed_dim)
 
-        if self.use_latent is not None:
+        if self.use_latent:
             self.latent_emb = nn.Linear(self.latent_dim, time_embed_dim)
 
 

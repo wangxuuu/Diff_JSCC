@@ -215,9 +215,9 @@ class TrainLoop:
             # if conditioning on latent code, encode it
             if self.encoder is not None:
                 if self.con_encoder:
-                    micro_cond['latent'] = self.encoder(micro, **micro_cond)
+                    micro_cond['latent'] = self.ddp_encoder(micro, **micro_cond)
                 else:
-                    micro_cond['latent'] = self.encoder(micro)
+                    micro_cond['latent'] = self.ddp_encoder(micro)
 
             last_batch = (i + self.microbatch) >= batch.shape[0]
             t, weights = self.schedule_sampler.sample(micro.shape[0], dist_util.dev())
