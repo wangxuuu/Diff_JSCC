@@ -39,14 +39,17 @@ def main():
     model, diffusion = create_model_and_diffusion(
         **select_config(config, model_and_diffusion_defaults().keys())
     )
-    # create encoder if apply diffusion conditional on latent
+    # create encoder if apply diffusion conditional on latent; otherwise, encoder is None
     if config['use_latent']:
         if config['encoder_type']=='unet':
             encoder = create_encoder(**select_config(config, encoder_defaults().keys()))
         elif config['encoder_type']=='jscc':
             encoder = JSCC_encoder(hidden_dims=config['hidden_dims'])
         encoder.to(dist_util.dev())
+    else:
+        encoder = None
     model.to(dist_util.dev())
+    
     logger.log("creating sampling model...")
     schedule_sampler = create_named_schedule_sampler(config['schedule_sampler'], diffusion)
 

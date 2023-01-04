@@ -4,7 +4,7 @@
 num_classes: 10
 dataset: "cifar10"
 data_dir: "../data/cifar_train"
-log_dir: "./jscc_log"   # depend on encoder_type in encoder section
+log_dir: "./uncon_log"   # depend on encoder_type in encoder section: unconditional; jscc_log; log
 model_path: './jscc_log/model100000.pt'   # depend on encoder_type in encoder section
 encoder_path: './log/encoder010000.pt'    # half unet encoder
 jscc_encoder_path: './jscc_log/encoder100000.pt' # JSCC encoder
@@ -52,11 +52,11 @@ clip_denoised: True
 use_ddim: True
 
 #============= Encoder =============#
-encoder_type: 'jscc' # can set as 'jscc' 'unet'
+encoder_type: None # can set as 'jscc' 'unet' None
 use_label_embed: False # whether to condition on label when training the encoder
 use_time_embed: False # set as False in default
 
-use_latent: True # decide whether to conditioning on latent code of the data; used to create Unet
+use_latent: False # decide whether to conditioning on latent code of the data; used to create Unet
 latent_dim: 512 # has to be same as out_channels if use latent diffusion; used to create Unet
 out_channels: 512 # the dim of latent representation; used to create encoder
 hidden_dims: [12, 24, 48, 96, 512] # only need when using JSCC encoder; the last dimension should keep as same as the latent dim above
