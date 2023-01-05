@@ -3,10 +3,10 @@
 #============= save path =============#
 num_classes: 10
 dataset: "cifar10"
-data_dir: "../data/cifar_train"
+data_dir: "../data/cifar_test"
 log_dir: "./jscc_log"   # depend on encoder_type in encoder section
 model_path: './jscc_log/model100000.pt'   # depend on encoder_type in encoder section
-encoder_path: './log/encoder010000.pt'    # half unet encoder
+encoder_path: './log/encoder060000.pt'    # half unet encoder
 jscc_encoder_path: './jscc_log/encoder100000.pt' # JSCC encoder
 
 #============= training parameters =============#
@@ -25,7 +25,7 @@ fp16_scale_growth: 1e-3
 
 #============= model (Unet) setting =============#
 image_size: 32
-num_channels: 128
+num_channels: 128  # normally the channels of time embedding is num_channels*4
 num_res_blocks: 3
 num_heads: 4
 num_heads_upsample: -1
@@ -60,3 +60,7 @@ use_latent: True # decide whether to conditioning on latent code of the data; us
 latent_dim: 512 # has to be same as out_channels if use latent diffusion; used to create Unet
 out_channels: 512 # the dim of latent representation; used to create encoder
 hidden_dims: [12, 24, 48, 96, 512] # only need when using JSCC encoder; the last dimension should keep as same as the latent dim above
+
+#============= Evaluation =============#
+# only used for Evaluation
+noise: 'Gaussian' # 'XT' 'Gaussian'
