@@ -725,6 +725,134 @@ class EncoderModel(nn.Module):
         else:
             return h
 
+#================== Implementation of Conditional Diffusion Model Encoder ==================#
+class EncBlock(nn.Module):
+    def __init__(self, 
+                in_channels, 
+                out_channels,
+                emb_channels=None,
+                dropout=0.1,
+                conv_resample=True,
+                use_scale_shift_norm=False,
+                dims=2,
+                use_checkpoint=False,):
+        super().__init__()
+        self.resblock = ResBlock(
+                in_channels,
+                emb_channels,
+                dropout,
+                out_channels=out_channels,
+                dims=dims,
+                use_checkpoint=use_checkpoint,
+                use_scale_shift_norm=use_scale_shift_norm,
+            )
+        self.conv = TimestepEmbedSequential(Downsample(out_channels, conv_resample, dims=dims))
+
+    def forward(self, x, emb=None):
+        x = self.resblock(x, emb)
+        x = self.conv(x, emb)
+        return x
+
+class CDM_encoder(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        model_channels,
+        out_channels,
+        dropout=0,
+        channel_mult=(1, 2, 4, 8),
+        conv_resample=True,
+        dims=2,
+        num_classes=None,
+        use_checkpoint=False,
+        use_scale_shift_norm=False,
+        use_time_embed=False,
+        use_label_embed=False
+    ):
+        super().__init__()
+
+        self.in_channels = in_channels
+        self.model_channels = model_channels
+        self.out_channels = out_channels
+        self.dropout = dropout
+        self.channel_mult = channel_mult
+        self.conv_resample = conv_resample
+        self.num_classes = num_classes
+        self.use_checkpoint = use_checkpoint
+        self.use_time_embed = use_time_embed
+        self.use_label_embed = use_label_embed
+
+        if use_time_embed:
+            time_embed_dim = model_channels * 4
+            self.time_embed = nn.Sequential(
+                linear(model_channels, time_embed_dim),
+                SiLU(),
+                linear(time_embed_dim, time_embed_dim),
+            )
+        else:
+            time_embed_dim = None
+
+        assert (use_label_embed) == (
+            self.num_classes is not None
+        ), "must specify num_classes if and only if the model is class-conditional"
+
+        if self.use_label_embed:
+            label_embed_dim = model_channels * 4
+            self.label_emb = nn.Embedding(num_classes, label_embed_dim)
+        else:
+            label_embed_dim = None
+
+        embed_dim = time_embed_dim or label_embed_dim
+        ch = model_channels
+        self.input_blocks = nn.ModuleList(
+            [
+                TimestepEmbedSequential(
+                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
+                )
+            ]
+            )
+
+        for level, mult in enumerate(channel_mult):
+            layers = [
+                EncBlock(in_channels=ch,
+                    out_channels=mult * model_channels,
+                    emb_channels=embed_dim,
+                    dropout=dropout,
+                    conv_resample=conv_resample,
+                    use_scale_shift_norm=use_scale_shift_norm,
+                    dims=dims,
+                    use_checkpoint=use_checkpoint,)
+            ]
+            ch = mult * model_channels
+            self.input_blocks.append(
+                TimestepEmbedSequential(*layers)
+            )
+        self.out = nn.Sequential(
+            normalization(ch),
+            nn.SiLU(),
+            nn.AdaptiveAvgPool2d((1,1)),
+            conv_nd(dims, ch, out_channels, 1),
+            nn.Flatten(),
+        )
+        # self.input_blocks.append(TimestepEmbedSequential(
+        #             conv_nd(dims, ch, out_channels, 3, padding=1)
+        #         ))
+    def forward(self, x, timesteps=None, y=None):
+        if self.use_time_embed:
+            emb = self.time_embed(timestep_embedding(timesteps, self.model_channels))
+        else:
+            emb = None
+        # label embedding
+        if self.use_label_embed:
+            assert y.shape == (x.shape[0],), "labels are not provided or are not the right shape"
+            # y: [64]; label_emb: [64, 512]
+            if emb is None:
+                emb = self.label_emb(y)
+            else:
+                emb = emb + self.label_emb(y)
+        for block in self.input_blocks:
+            x = block(x, emb)
+        return self.out(x)
 
 class SuperResModel(UNetModel):
     """

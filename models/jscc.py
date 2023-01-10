@@ -34,6 +34,7 @@ class Autoencoder(nn.Module):
 
         hidden_dims = [16, 32, 32, 32, c]
         strides = [2, 2, 1, 1, 1]
+        self.strides = strides
         # Input size: [batch, 3, 32, 32]
         # Output size: [batch, 3, 32, 32]
         # Build Encoder
@@ -65,19 +66,24 @@ class Autoencoder(nn.Module):
                     nn.ConvTranspose2d(hidden_dims[i],
                                        hidden_dims[i + 1],
                                        kernel_size=5,
-                                       stride = strides[i]),
+                                       stride = strides[i],
+                                       padding=2,
+                                       output_padding=strides[i]-1),
                     nn.BatchNorm2d(hidden_dims[i + 1]),
                     nn.PReLU())
             )
 
+        modules.append(
+                nn.Sequential(
+                    nn.ConvTranspose2d(hidden_dims[-1],
+                                        in_channels,
+                                        kernel_size=5,
+                                        stride=2,
+                                        padding=2,
+                                        output_padding=1),
+                    nn.Sigmoid())
+        )
         self.decoder = nn.Sequential(*modules)
-        self.final_layer = nn.Sequential(
-                            nn.ConvTranspose2d(hidden_dims[-1],
-                                               in_channels,
-                                               kernel_size=5,
-                                               stride=2),
-                            nn.Sigmoid())
-
 
     def encode(self, x):
         encoded = self.encoder(x)
@@ -86,7 +92,7 @@ class Autoencoder(nn.Module):
 
     def decode(self, z):
         decoded = self.decoder(z)
-        return self.final_layer(decoded)
+        return decoded
 
     def forward(self, x):
         return self.decode(self.encode(x))

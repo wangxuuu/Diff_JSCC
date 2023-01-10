@@ -4,17 +4,17 @@
 num_classes: 10
 dataset: "cifar10"
 data_dir: "../data/cifar_train"
-log_dir: "./uncon_log"   # depend on encoder_type in encoder section: unconditional; jscc_log; log
-model_path: './jscc_log/model100000.pt'   # depend on encoder_type in encoder section
-encoder_path: './log/encoder010000.pt'    # half unet encoder
-jscc_encoder_path: './jscc_log/encoder100000.pt' # JSCC encoder
+log_dir: "./log/uncon_log"   # depend on encoder_type in encoder section: unconditional; jscc_log; log
+model_path: './log/jscc/model100000.pt'   # depend on encoder_type in encoder section
+encoder_path: './log/unet/encoder010000.pt'    # half unet encoder
+jscc_encoder_path: './log/jscc/encoder100000.pt' # JSCC encoder
 
 #============= training parameters =============#
 dropout: 0.3
 lr: 0.0001
 weight_decay: 0.0
 lr_anneal_steps: 100000 # total training steps
-batch_size: 64
+batch_size: 128
 microbatch: -1  # -1 disables microbatches
 ema_rate: 0.9999  # comma-separated list of EMA values
 log_interval: 10

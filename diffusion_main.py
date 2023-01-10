@@ -14,7 +14,9 @@ from models.script_util import (
     create_model_and_diffusion,
     select_config,
     create_encoder,
+    create_cdm,
     encoder_defaults,
+    cdm_defaults,
 )
 from models.train_util import TrainLoop
 
@@ -37,14 +39,16 @@ def main():
 
     logger.log("creating model and diffusion...")
     model, diffusion = create_model_and_diffusion(
-        **select_config(config, model_and_diffusion_defaults().keys())
+        **select_config(config, model_and_diffusion_defaults())
     )
     # create encoder if apply diffusion conditional on latent; otherwise, encoder is None
     if config['use_latent']:
         if config['encoder_type']=='unet':
-            encoder = create_encoder(**select_config(config, encoder_defaults().keys()))
+            encoder = create_encoder(**select_config(config, encoder_defaults()))
         elif config['encoder_type']=='jscc':
             encoder = JSCC_encoder(hidden_dims=config['hidden_dims'])
+        elif config['encoder_type']=='cdm':
+            encoder = create_cdm(**select_config(config, cdm_defaults()))
         encoder.to(dist_util.dev())
     else:
         encoder = None

@@ -3,7 +3,7 @@ import inspect
 
 from . import gaussian_diffusion as gd
 from .respace import SpacedDiffusion, space_timesteps
-from .unet import SuperResModel, UNetModel, EncoderModel
+from .unet import SuperResModel, UNetModel, EncoderModel, CDM_encoder
 
 NUM_CLASSES = 10 # 1000
 
@@ -57,6 +57,60 @@ def encoder_defaults():
         use_label_embed=False
     )
 
+def cdm_defaults():
+    """
+    Defaults for CDM encoder
+    """
+    return dict(
+        in_channels=3,
+        image_size=32,
+        model_channels=128,
+        out_channels=512,
+        dropout=0,
+        channel_mult=(1, 2, 4, 8),
+        conv_resample=True,
+        dims=2,
+        num_classes=None,
+        use_checkpoint=False,
+        use_scale_shift_norm=False,
+        use_time_embed=False,
+        use_label_embed=False
+    )
+
+def create_cdm(in_channels=3,
+        image_size=32,
+        model_channels=128,
+        out_channels=512,
+        dropout=0,
+        channel_mult=(1, 2, 4, 8),
+        conv_resample=True,
+        dims=2,
+        num_classes=None,
+        use_checkpoint=False,
+        use_scale_shift_norm=False,
+        use_time_embed=False,
+        use_label_embed=False):
+    if image_size == 256:
+        channel_mult = (1, 1, 2, 2, 4, 4)
+    elif image_size == 64:
+        channel_mult = (1, 2, 3, 4)
+    elif image_size == 32:
+        channel_mult = (1, 2, 2, 2)
+    else:
+        raise ValueError(f"unsupported image size: {image_size}")
+    return CDM_encoder(in_channels=in_channels,
+        model_channels=model_channels,
+        out_channels=out_channels,
+        dropout=dropout,
+        channel_mult=channel_mult,
+        conv_resample=conv_resample,
+        dims=dims,
+        num_classes=(num_classes if use_label_embed else None), # if use_label_embed, then num_classes is not None
+        use_checkpoint=use_checkpoint,
+        use_scale_shift_norm=use_scale_shift_norm,
+        use_time_embed=use_time_embed,
+        use_label_embed=use_label_embed)
+        
 def create_model_and_diffusion(
     image_size,
     class_cond,
@@ -394,8 +448,12 @@ def add_dict_to_argparser(parser, default_dict):
 def args_to_dict(args, keys):
     return {k: getattr(args, k) for k in keys}
 
-def select_config(config, keys):
-    return {k: config[k] for k in keys}
+def select_config(config, defaults):
+    """
+    config: the config file; a dictionary
+    defaults: the default values; a dictionary
+    """
+    return {k: config[k] if k in config else defaults[k] for k in defaults.keys()}
 
 def str2bool(v):
     """
