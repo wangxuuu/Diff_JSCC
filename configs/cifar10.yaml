@@ -7,7 +7,7 @@ data_dir: "../data/cifar_train"
 log_dir: "./log/cdm_log"   # depend on encoder_type in encoder section; to save the checkpoint
 # used for inference; load the checkpoint
 model_path: './log/jscc/model100000.pt'   # depend on encoder_type in encoder section
-encoder_path: './log/unet/encoder060000.pt'    # half unet encoder
+encoder_path: './log/unet/encoder100000.pt'    # half unet encoder
 jscc_encoder_path: './log/jscc/encoder100000.pt' # JSCC encoder
 
 #============= training parameters =============#
