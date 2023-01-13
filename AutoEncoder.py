@@ -55,10 +55,10 @@ def main():
     parser = argparse.ArgumentParser(description="Train Autoencoder")
     parser.add_argument("--valid", action="store_true", default=False,
                         help="Perform validation only.")
-    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--epochs", type=int, default=200, help="Number of epochs to train for.")
     parser.add_argument("--sample_dir", type=str, default='./results/cifar_test/')
-    parser.add_argument("--dataset_dir", type=str, default='../../Data/cifar10/')
+    parser.add_argument("--dataset_dir", type=str, default='../data/cifar10/')
     parser.add_argument("--ckpt_dir", type=str, default='./checkpoints/')
     args = parser.parse_args()
 
@@ -124,11 +124,11 @@ def main():
                 print('Epoch [%d, %5d] Step [%d, %5d] loss: %.3f ' %
                       (epoch + 1, args.epochs, i+1, len(trainloader), running_loss / 200))
                 running_loss = 0.0
-
-        with torch.no_grad():
-            # Save the reconstructed images
-            x_concat = torch.cat([inputs, outputs], dim=3)
-            save_image(x_concat, os.path.join(args.sample_dir, 'reconst-{}.png'.format(epoch+1)), nrow=4)
+        if (epoch+1) % 10 == 0:
+            with torch.no_grad():
+                # Save the reconstructed images
+                x_concat = torch.cat([inputs, outputs], dim=3)
+                save_image(x_concat, os.path.join(args.sample_dir, 'reconst-{}.png'.format(epoch+1)), nrow=4)
 
 
     print('Finished Training')

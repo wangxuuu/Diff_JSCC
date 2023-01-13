@@ -355,6 +355,8 @@ class UNetModel(nn.Module):
             self.label_emb = nn.Embedding(num_classes, time_embed_dim)
 
         if self.use_latent:
+            # if use latent representation, we need to project it to the same dimension as time_embed_dim
+            # the dim of latent representation is (batchsize, latent_dim)
             self.latent_emb = nn.Linear(self.latent_dim, time_embed_dim)
 
 

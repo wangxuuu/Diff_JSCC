@@ -1,3 +1,5 @@
+# Autoencoder model with convolution layers
+
 import torch.nn as nn
 
 
@@ -90,10 +92,10 @@ def expand_to_planes(input, shape):
     """
     return input[..., None, None].repeat([1, 1, shape[2], shape[3]])
 
-#################### JSCC_encoder ####################
-class JSCC_encoder(nn.Module):
+#################### auto_encoder ####################
+class auto_encoder(nn.Module):
     """
-    Use JSCC as the encoder to generate the latent representation
+    Use autoencoder as the encoder to generate the latent representation
     """
     def __init__(self,
                  in_channels: int = 3,
@@ -101,7 +103,7 @@ class JSCC_encoder(nn.Module):
                  num_classes: int = 10,
                  use_time_embed: bool = False,
                  use_label_embed: bool = False,):
-        super(JSCC_encoder, self).__init__()
+        super(auto_encoder, self).__init__()
         if hidden_dims is None:
             hidden_dims = [12, 24, 48, 96, 96]
 

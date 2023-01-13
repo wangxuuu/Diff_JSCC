@@ -1,10 +1,11 @@
 ## for cifar10
-
+# TODO: the latend_dim is sensitive to the encoders' setting
+# need to compute the dim before set the config
 #============= save path =============#
 num_classes: 10
 dataset: "cifar10"
 data_dir: "../data/cifar_train"
-log_dir: "./log/cdm_log"   # depend on encoder_type in encoder section; to save the checkpoint
+log_dir: "./log/cdm"   # depend on encoder_type in encoder section; to save the checkpoint
 # used for inference; load the checkpoint
 model_path: './log/jscc/model100000.pt'   # depend on encoder_type in encoder section
 encoder_path: './log/unet/encoder100000.pt'    # half unet encoder
@@ -60,9 +61,9 @@ use_time_embed: False # set as False in default
 use_latent: True # decide whether to conditioning on latent code of the data; used to create Unet
 latent_dim: 512 # has to be same as out_channels if use latent diffusion; used to create Unet
 out_channels: 512 # the dim of latent representation; used to create encoder
-hidden_dims: [12, 24, 48, 96, 512] # only need when using JSCC encoder; the last dimension should keep as same as the latent dim above
+hidden_dims: [12, 24, 48, 96, 512] # only need when using auto encoder; the last dimension controls the compression rate
 
-
+c_out: 8 # JSCC out_channels of encoder, compression rate = c_out/(3*16); be careful when choose JSCC, need to modify latent_dim: 3*c_out**2
 #============= Evaluation =============#
 # only used for Evaluation
 noise: 'Gaussian' # 'XT' 'Gaussian'

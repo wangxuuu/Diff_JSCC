@@ -1,3 +1,4 @@
+# main function for running JSCC model
 import numpy as np
 import torch
 import torch.nn as nn
@@ -61,7 +62,7 @@ def main():
     parser = argparse.ArgumentParser(description="Train Autoencoder")
     parser.add_argument("--valid", action="store_true", default=False,
                         help="Perform validation only.")
-    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--c_out", type=int, default=8, help="the channel of the latent representation; used to control the compression ratio:  k/n=c_out/(16*3)")
     parser.add_argument("--epochs", type=int, default=200, help="Number of epochs to train for.")
     parser.add_argument("--sample_dir", type=str, default='./results/jscc_samples/')
@@ -130,11 +131,12 @@ def main():
                 print('Epoch [%d, %5d] Step [%d, %5d] loss: %.3f ' %
                       (epoch + 1, args.epochs, i+1, len(trainloader), running_loss / 200))
                 running_loss = 0.0
-
-        with torch.no_grad():
-            # Save the reconstructed images
-            x_concat = torch.cat([inputs, outputs], dim=3)
-            save_image(x_concat, os.path.join(args.sample_dir, 'reconst-{}.png'.format(epoch+1)), nrow=4)
+                
+        if (epoch+1) % 10 == 0:
+            with torch.no_grad():
+                # Save the reconstructed images
+                x_concat = torch.cat([inputs, outputs], dim=3)
+                save_image(x_concat, os.path.join(args.sample_dir, 'reconst-{}.png'.format(epoch+1)), nrow=4)
 
 
     print('Finished Training')

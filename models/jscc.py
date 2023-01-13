@@ -97,6 +97,61 @@ class Autoencoder(nn.Module):
     def forward(self, x):
         return self.decode(self.encode(x))
 
+#################### jscc_encoder ####################
+class JSCC_encoder(nn.Module):
+    """
+    Use JSCC as the encoder to generate the latent representation
+    """
+    def __init__(self,
+                 in_channels: int = 3,
+                 c_out: int = 64,
+                 kernel_size: int = 5,
+                 dilation: tuple = (1,1),
+                 num_classes: int = 10,
+                 use_time_embed: bool = False,
+                 use_label_embed: bool = False,):
+        super(JSCC_encoder, self).__init__()
+        hidden_dims = [16, 32, 32, 32, c_out]
+        strides = [2, 2, 1, 1, 1]
+        self.strides = strides
+        # Build Encoder
+        modules = []
+        input_channels = in_channels
+        input_pad = padding(kernel_size, dilation)
+        for i in range(len(hidden_dims)):
+            # for h_dim in hidden_dims:
+            h_dim = hidden_dims[i]
+            modules.append(
+                nn.Sequential(
+                    nn.ZeroPad2d(input_pad),
+                    nn.Conv2d(input_channels,
+                              out_channels=h_dim,
+                              kernel_size=5,
+                              stride=strides[i]),
+                    nn.BatchNorm2d(h_dim),
+                    nn.PReLU())
+            )
+            input_channels = h_dim
+
+        self.out = nn.Flatten()
+        self.encoder = nn.Sequential(*modules)
+
+        # if use_time_embed:
+        #     time_embed_dim = model_channels * 4
+        #     self.time_embed = nn.Linear(model_channels, time_embed_dim)
+
+        # if use_label_embed:
+        #     label_embed_dim = model_channels * 4
+        #     self.label_emb = nn.Embedding(num_classes, label_embed_dim)
+        
+
+    def forward(self, x, timesteps=None, y=None):
+        # if timesteps is not None:
+        #     timestep_embed = expand_to_planes(self.timestep_embed(timesteps), input.shape)
+        # if y is not None:
+        #     class_embed = expand_to_planes(self.class_embed(y), input.shape)
+        return self.out(self.encoder(x))
+
 
 
 

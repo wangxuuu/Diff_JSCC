@@ -4,7 +4,7 @@
 num_classes: 10
 dataset: "cifar10"
 data_dir: "../data/cifar_train"
-log_dir: "./log/uncon_log"   # depend on encoder_type in encoder section: unconditional; jscc_log; log
+log_dir: "./log/uncon"   # depend on encoder_type in encoder section: unconditional; jscc_log; log
 model_path: './log/jscc/model100000.pt'   # depend on encoder_type in encoder section
 encoder_path: './log/unet/encoder010000.pt'    # half unet encoder
 jscc_encoder_path: './log/jscc/encoder100000.pt' # JSCC encoder
